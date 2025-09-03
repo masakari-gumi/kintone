@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>講習科目別受講料集計</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', 'Noto Sans JP', sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: white;
+            color: #333;
+            padding: 30px;
+            text-align: center;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 400;
+            margin-bottom: 8px;
+        }
+
+        .status {
+            padding: 15px 30px;
+            background: #e8f5e8;
+            color: #2e7d32;
+            font-size: 14px;
+            text-align: center;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .loading-status {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .error-status {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .summary-section {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .total-amount {
+            font-size: 32px;
+            font-weight: 300;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .total-label {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .charts-section {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 30px;
+        }
+
+        .table-container {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .chart-container {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        th {
+            background: #f5f5f5;
+            font-weight: 500;
+            color: #333;
+            font-size: 14px;
+        }
+
+        td {
+            font-size: 14px;
+        }
+
+        tr:hover {
+            background: #fafafa;
+        }
+
+        .amount {
+            text-align: right;
+            font-weight: 400;
+        }
+
+        .total-row {
+            background: #f0f0f0;
+            font-weight: 500;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #1976d2;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            text-align: center;
+            padding: 40px;
+            color: #c62828;
+            background: #ffebee;
+            border-radius: 8px;
+            margin: 20px;
+        }
+
+        .error-title {
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 15px;
+        }
+
+        .error-details {
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .solution-steps {
+            background: white;
+            padding: 20px;
+            border-radius: 4px;
+            text-align: left;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .solution-steps h4 {
+            color: #d32f2f;
+            margin-bottom: 10px;
+        }
+
+        .solution-steps ol {
+            margin-left: 20px;
+        }
+
+        .solution-steps li {
+            margin-bottom: 8px;
+        }
+
+        .solution-steps code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+
+        @media (max-width: 768px) {
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>講習科目別受講料集計</h1>
+            <p>masakarigumi kintoneアプリからリアルタイム取得</p>
+        </div>
+
+        <div id="status" class="status loading-status">
+            <span class="spinner"></span>kintoneからデータを取得中...
+        </div>
+
+        <div class="content">
+            <div id="data-display" style="display: none;">
+                <div class="summary-section">
+                    <div class="total-amount" id="totalAmount">¥0</div>
+                    <div class="total-label">総受講料</div>
+                </div>
+
+                <div class="charts-section">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>講習科目</th>
+                                    <th class="amount">合計金額</th>
+                                    <th class="amount">割合</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody">
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="chart-container">
+                        <h3 style="margin-bottom: 20px; font-weight: 400; color: #333;">科目別割合</h3>
+                        <canvas id="pieChart" width="280" height="280"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div id="error-display" class="error-message" style="display: none;">
+                <div class="error-title">kintoneデータ取得エラー</div>
+                <div class="error-details">
+                    CORS制限により、ローカルファイルからkintone APIに直接アクセスできません。
+                </div>
+                <div class="solution-steps">
+                    <h4>解決方法:</h4>
+                    <ol>
+                        <li>Chromeブラウザを完全に終了</li>
+                        <li>コマンドプロンプトで以下を実行:<br>
+                            <code>chrome.exe --user-data-dir=/tmp/foo --disable-web-security</code>
+                        </li>
+                        <li>このHTMLファイルを再度開く</li>
+                        <li>作業完了後は通常のブラウザに戻す</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // kintone接続設定
+        const KINTONE_CONFIG = {
+            subdomain: 'masakarigumi',
+            appId: '69',
+            apiToken: '6yDQnl8r3jFRS16Vpgj54d7sKcUEyF6gyqhbz2gH'
+        };
+
+        // 講習科目一覧
+        const subjects = [
+            '玉掛け技能講習',
+            '高所作業車運転技能講習',
+            'フォークリフト運転技能講習',
+            '小型移動式クレーン運転技能講習',
+            '足場の組立等作業主任者技能講習',
+            '型枠支保工の組立て等作業主任者技能',
+            '自由研削用といし特別教育',
+            '酸素欠乏・硫化水素危険作業特別教育',
+            '石綿(建築物等)解体作業特別教育',
+            '足場の組立て等　特別教育',
+            'フルハーネス特別教育',
+            'アーク溶接特別教育',
+            '巻上げ機（ウインチ）の運転特別教育',
+            'ローラーの運転特別教育',
+            '低圧電気取扱業務特別教育',
+            'テールゲートリフター特別教育',
+            '振動工具取扱作業者　安全衛生教育',
+            '丸ノコ等取扱作業者　安全衛生教育',
+            '職長・安全衛生責任者教育',
+            '有機溶剤取扱作業　安全衛生教育',
+            '足場の組立作業主任者　能力向上教育',
+            '職長・安全衛生教育責任者教育　能力向上教育',
+            '玉掛け業務従事者　安全衛生教育',
+            '熱中症予防指導員研修'
+        ];
+
+        let chartInstance = null;
+
+        // kintoneからデータを取得
+        async function fetchKintoneData() {
+            const url = `https://${KINTONE_CONFIG.subdomain}.cybozu.com/k/v1/records.json?app=${KINTONE_CONFIG.appId}`;
+            
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'X-Cybozu-API-Token': KINTONE_CONFIG.apiToken,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`kintone API エラー: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            
+            if (!data.records || data.records.length === 0) {
+                throw new Error('データが見つかりませんでした');
+            }
+
+            return processKintoneRecords(data.records);
+        }
+
+        // kintoneレコードを処理
+        function processKintoneRecords(records) {
+            const subjectTotals = {};
+            
+            // 科目を初期化
+            subjects.forEach(subject => {
+                subjectTotals[subject] = 0;
+            });
+
+            // レコードを処理
+            records.forEach(record => {
+                const subject = record['講習科目']?.value;
+                const table = record['テーブル']?.value || [];
+                
+                if (subject && subjects.includes(subject)) {
+                    table.forEach(row => {
+                        const amount = parseInt(row.value['受講料']?.value || '0');
+                        if (!isNaN(amount) && amount > 0) {
+                            subjectTotals[subject] += amount;
+                        }
+                    });
+                }
+            });
+
+            // 0円の科目を除外
+            const filteredTotals = {};
+            Object.entries(subjectTotals).forEach(([subject, total]) => {
+                if (total > 0) {
+                    filteredTotals[subject] = total;
+                }
+            });
+
+            return filteredTotals;
+        }
+
+        // 結果を表示
+        function displayResults(totals) {
+            const totalAmount = Object.values(totals).reduce((sum, amount) => sum + amount, 0);
+            const subjectCount = Object.keys(totals).length;
+
+            document.getElementById('totalAmount').textContent = formatCurrency(totalAmount);
+            updateTable(totals, totalAmount);
+            updateChart(totals);
+
+            // データ表示エリアを表示
+            document.getElementById('data-display').style.display = 'block';
+            updateStatus(`${subjectCount}科目、総額${formatCurrency(totalAmount)}を表示中`, 'success');
+        }
+
+        // エラー表示
+        function showError() {
+            document.getElementById('status').style.display = 'none';
+            document.getElementById('error-display').style.display = 'block';
+        }
+
+        // テーブル更新
+        function updateTable(totals, totalAmount) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            const sortedEntries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+
+            sortedEntries.forEach(([subject, amount]) => {
+                const percentage = ((amount / totalAmount) * 100).toFixed(1);
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td>${subject}</td>
+                    <td class="amount">${formatCurrency(amount)}</td>
+                    <td class="amount">${percentage}%</td>
+                `;
+            });
+
+            const totalRow = tbody.insertRow();
+            totalRow.className = 'total-row';
+            totalRow.innerHTML = `
+                <td><strong>合計</strong></td>
+                <td class="amount"><strong>${formatCurrency(totalAmount)}</strong></td>
+                <td class="amount"><strong>100.0%</strong></td>
+            `;
+        }
+
+        // グラフ更新
+        function updateChart(totals) {
+            const ctx = document.getElementById('pieChart').getContext('2d');
+            
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            const sortedEntries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+            const labels = sortedEntries.map(([subject]) => subject);
+            const data = sortedEntries.map(([, amount]) => amount);
+            
+            const colors = [
+                '#1976d2', '#388e3c', '#f57c00', '#d32f2f',
+                '#7b1fa2', '#455a64', '#00796b', '#f9a825',
+                '#c2185b', '#5e35b1', '#00acc1', '#8bc34a'
+            ];
+
+            chartInstance = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: colors,
+                        borderWidth: 1,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((context.raw / total) * 100).toFixed(1);
+                                    return `${context.label}: ${formatCurrency(context.raw)} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ステータス更新
+        function updateStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            
+            statusDiv.className = 'status';
+            
+            if (type === 'loading') {
+                statusDiv.className += ' loading-status';
+                statusDiv.innerHTML = '<span class="spinner"></span>' + message;
+            } else if (type === 'error') {
+                statusDiv.className += ' error-status';
+            }
+        }
+
+        // 通貨フォーマット
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('ja-JP', {
+                style: 'currency',
+                currency: 'JPY',
+                minimumFractionDigits: 0
+            }).format(amount);
+        }
+
+        // ページ読み込み時に自動実行
+        window.addEventListener('load', async function() {
+            updateStatus('kintoneに接続中...', 'loading');
+            
+            try {
+                const totals = await fetchKintoneData();
+                displayResults(totals);
+            } catch (error) {
+                console.error('kintone接続エラー:', error);
+                showError();
+            }
+        });
+    </script>
+</body>
+</html>
